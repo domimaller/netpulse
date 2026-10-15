@@ -1,0 +1,685 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>netpulse</title>
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7;
+  --surface: #fcfcfb;
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --muted: #898781;
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+  --border: rgba(11,11,11,0.10);
+  --s1: #2a78d6;   /* series 1: blue  */
+  --s2: #eb6834;   /* series 2: orange */
+  --good: #0ca30c;
+  --warn: #fab219;
+  --crit: #d03b3b;
+  --good-ink: #006300;
+  --probe: #6250d6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+    --s1: #3987e5; --s2: #d95926; --good-ink: #0ca30c; --probe: #9085e9;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+  --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+  --s1: #3987e5; --s2: #d95926; --good-ink: #0ca30c; --probe: #9085e9;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--ink);
+  font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1240px; margin: 0 auto; padding: 20px 16px 40px; }
+header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; margin-bottom: 16px; }
+h1 { font-size: 18px; margin: 0; letter-spacing: -0.01em; }
+.meta { color: var(--muted); font-size: 12px; }
+.spacer { flex: 1; }
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 6px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--surface); font-weight: 600; font-size: 13px; }
+.pill .ic { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center;
+  color: #fff; font-size: 11px; font-weight: 700; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 10px; }
+.tile { padding: 12px 14px; min-width: 0; }
+.tile .k { color: var(--ink-2); font-size: 12px; }
+.tile .v { font-size: 26px; font-weight: 600; letter-spacing: -0.02em; margin-top: 2px; white-space: nowrap; }
+.tile .v small { font-size: 13px; font-weight: 500; color: var(--ink-2); margin-left: 2px; }
+.tile .d { color: var(--muted); font-size: 12px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile.hero .v { font-size: 34px; }
+.bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 18px 0 8px; }
+.bar h2 { font-size: 13px; margin: 0; color: var(--ink-2); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surface); }
+.seg button { border: 0; background: none; color: var(--ink-2); padding: 5px 11px; font: inherit; font-size: 13px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+.charts { padding: 6px 12px 10px; }
+.chart { position: relative; margin-top: 10px; }
+.chart .head { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; font-size: 12px; color: var(--ink-2); margin-bottom: 4px; }
+.chart .head b { color: var(--ink); font-weight: 600; font-size: 13px; }
+.lg { display: inline-flex; align-items: center; gap: 5px; }
+.sw { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+.sw.line { height: 2px; width: 14px; border-radius: 1px; }
+.sw.dash { height: 0; width: 14px; border-top: 2px dashed var(--muted); }
+canvas { display: block; width: 100%; }
+#tip { position: fixed; pointer-events: none; z-index: 10; background: var(--surface); color: var(--ink);
+  border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 12px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.12); min-width: 190px; display: none; }
+#tip .row { display: flex; justify-content: space-between; gap: 14px; }
+#tip .row span:first-child { color: var(--ink-2); }
+#tip .row span:last-child { font-variant-numeric: tabular-nums; }
+#tip .t { font-weight: 600; margin-bottom: 4px; }
+.grid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+@media (max-width: 860px) { .grid2 { grid-template-columns: minmax(0, 1fr); } }
+.panel { padding: 14px; min-width: 0; }
+.panel h3 { margin: 0 0 10px; font-size: 14px; }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+th, td { text-align: right; padding: 5px 8px; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+th { color: var(--ink-2); font-weight: 500; }
+.btn { border: 1px solid var(--border); background: var(--ink); color: var(--surface); border-radius: 8px;
+  padding: 6px 12px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.btn:disabled { opacity: .5; cursor: default; }
+.status-line { color: var(--ink-2); margin: 0 0 10px; font-size: 13px; }
+.budget { height: 6px; border-radius: 3px; background: var(--grid); overflow: hidden; margin: 4px 0 2px; }
+.budget > div { height: 100%; background: var(--s1); border-radius: 3px; }
+.kv { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px 16px; margin-bottom: 12px; }
+.kv div span { display: block; color: var(--ink-2); font-size: 12px; }
+.kv div b { font-size: 16px; font-weight: 600; }
+.note { color: var(--muted); font-size: 12px; margin-top: 8px; }
+.tag { font-size: 11px; padding: 1px 6px; border-radius: 4px; border: 1px solid var(--border); color: var(--ink-2); }
+#conn { font-size: 12px; color: var(--muted); }
+[data-info] { cursor: help; }
+.info { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; margin-left: 5px;
+  border-radius: 50%; border: 1px solid var(--muted); color: var(--muted); background: none; padding: 0;
+  font: 600 9.5px/1 Georgia, serif; font-style: italic; vertical-align: 1px; cursor: help; flex: none; }
+.info:hover, .info:focus-visible, [data-info]:hover > .info { color: var(--ink); border-color: var(--ink); outline: none; }
+#infotip { position: fixed; z-index: 20; max-width: 280px; display: none; pointer-events: none;
+  background: var(--ink); color: var(--surface); border-radius: 8px; padding: 8px 10px;
+  font-size: 12px; line-height: 1.45; box-shadow: 0 4px 16px rgba(0,0,0,.18); }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>netpulse</h1>
+    <span class="pill" id="pill"><span class="ic" id="pillIc">…</span><span id="pillTx">connecting</span></span>
+    <span class="meta" id="stable"></span>
+    <span class="spacer"></span>
+    <span class="meta" id="info"></span>
+    <span id="conn"></span>
+  </header>
+
+  <section class="tiles">
+    <div class="card tile hero"><div class="k" data-info="Call-quality score (ITU-T E-model R-factor) computed from latency, jitter and packet loss; 1-minute average. Tops out at ~93. 80+ excellent, 70+ good, 60+ fair, below that poor.">Quality score</div><div class="v" id="tScore">–</div><div class="d" id="tScoreD"></div></div>
+    <div class="card tile hero"><div class="k" data-info="Round-trip time to the internet targets this second (median of all targets). Lower means snappier browsing, gaming and calls.">Latency</div><div class="v" id="tRtt">–</div><div class="d" id="tRttD"></div></div>
+    <div class="card tile hero"><div class="k" data-info="How much latency changes from one second to the next. High jitter makes calls and video stutter even when latency itself is low.">Jitter</div><div class="v" id="tJit">–</div><div class="d" id="tJitD"></div></div>
+    <div class="card tile hero"><div class="k" data-info="Share of probes that got no answer in the last 5 minutes. Loss causes retransmits, freezes and dropped calls; healthy links sit at 0%.">Packet loss · 5 min</div><div class="v" id="tLoss">–</div><div class="d" id="tLossD"></div></div>
+    <div class="card tile hero"><div class="k" data-info="Share of seconds in the last hour in which at least one target answered. A second with no answers at all counts as down.">Availability · 1 h</div><div class="v" id="tAvail">–</div><div class="d" id="tAvailD"></div></div>
+  </section>
+  <section class="tiles">
+    <div class="card tile"><div class="k" data-info="Estimated maximum download speed: the higher of the last speed probe and your own busiest second in the recent window.">Download capacity</div><div class="v" id="tDown">–</div><div class="d" id="tDownD"></div></div>
+    <div class="card tile"><div class="k" data-info="Estimated maximum upload speed: the higher of the last upload probe and your own busiest upload second in the recent window.">Upload capacity</div><div class="v" id="tUp">–</div><div class="d" id="tUpD"></div></div>
+    <div class="card tile"><div class="k" data-info="Extra latency while the link is busy, measured during download probes. High values mean calls lag whenever something downloads. Grades: A+ &lt;5 ms, A &lt;30, B &lt;60, C &lt;200, D &lt;400, F above.">Bufferbloat (latency under load)</div><div class="v" id="tBloat">–</div><div class="d" id="tBloatD"></div></div>
+    <div class="card tile"><div class="k" data-info="Ping to your router (default gateway). If this is slow or lossy too, the problem is your Wi-Fi or local network, not your internet provider.">Router (Wi‑Fi / LAN)</div><div class="v" id="tGw">–</div><div class="d" id="tGwD"></div></div>
+    <div class="card tile"><div class="k" data-info="Time your DNS resolver takes to answer one lookup. Slow DNS delays the first load of every new site.">DNS lookup</div><div class="v" id="tDns">–</div><div class="d" id="tDnsD"></div></div>
+  </section>
+
+  <div class="bar">
+    <h2>Every second</h2><span class="spacer"></span>
+    <div class="seg" id="range" role="group" aria-label="Time range">
+      <button data-s="60">1m</button><button data-s="300" aria-pressed="true">5m</button><button data-s="900">15m</button>
+      <button data-s="3600">1h</button><button data-s="21600">6h</button><button data-s="86400">24h</button>
+    </div>
+  </div>
+  <section class="card charts" id="charts"></section>
+
+  <div class="bar"><h2>Speed &amp; history</h2></div>
+  <section class="grid2">
+    <div class="card panel">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <h3 style="margin:0">Speed estimator</h3><span class="spacer"></span>
+        <button class="btn" id="fullBtn">Run full test</button>
+      </div>
+      <p class="status-line" id="spStatus"></p>
+      <div class="kv">
+        <div><span data-info="When the next automatic probe is allowed. Even then it waits until you are idle and latency is at baseline.">Next automatic probe</span><b id="spNext">–</b></div>
+        <div><span data-info="Gap between automatic probes. Grows while results stay stable, resets when the result changes or you switch networks.">Probe interval</span><b id="spInt">–</b></div>
+        <div><span data-info="Automatic and manual speed probes run since local midnight.">Probes today</span><b id="spCount">–</b></div>
+        <div><span data-info="Data used by speed probes today versus the daily cap. When the cap is reached, only the passive estimate is used until midnight.">Budget used today</span><b id="spBudget">–</b><div class="budget"><div id="spBudgetBar" style="width:0"></div></div></div>
+      </div>
+      <div class="scroll"><table id="probes"><thead><tr>
+        <th>Time</th><th>Dir</th><th data-info="Throughput measured by this probe (steady-state part, ignoring the slow TCP start).">Speed</th><th data-info="Data transferred by this probe.">Size</th><th data-info="Wall-clock duration of the transfer.">Took</th><th data-info="Median latency measured while the probe was running. In brackets: increase over the unloaded baseline (bufferbloat).">RTT under load</th><th data-info="Why a probe stopped early (latency rose, protecting your traffic) or failed.">Note</th>
+      </tr></thead><tbody></tbody></table></div>
+      <p class="note" id="spNote"></p>
+    </div>
+    <div class="card panel">
+      <h3>Windows</h3>
+      <div class="scroll"><table id="win"><thead><tr>
+        <th data-info="Time span summarised. A small tag means less data than the full window has been collected so far.">Window</th><th data-info="Share of seconds that were not down (at least one target answered).">Avail.</th><th data-info="Share of seconds that were neither down nor degraded.">Good</th><th data-info="Number of separate periods with down seconds.">Outages</th><th data-info="Longest continuous outage.">Longest</th><th data-info="Median latency in ms: half of the seconds were faster than this.">p50</th><th data-info="95th-percentile latency in ms: only 1 in 20 seconds was slower. Shows how bad the bad moments are.">p95</th><th data-info="Average jitter (second-to-second latency change) in ms.">Jitter</th><th data-info="Average packet loss.">Loss</th><th data-info="Seconds where latency jumped well above the window&#x27;s median (by the configured spike multiplier and minimum increase).">Spikes</th><th data-info="Average quality score (E-model R-factor).">Score</th>
+      </tr></thead><tbody></tbody></table></div>
+      <p class="note">A second is <b>down</b> when no target answered, <b>degraded</b> when any probe was lost,
+      latency spiked (&gt;3× baseline) or the quality score dropped below 70. Score is an E‑model R‑factor
+      (what a voice/video call would feel like): 80+ excellent, 70+ good, 60+ fair, below that poor.</p>
+    </div>
+  </section>
+</main>
+<div id="tip"></div>
+<div id="infotip" role="tooltip"></div>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+
+const S = { samples: [], summary: null, range: 300, hoverT: null, maxKeep: 86400 };
+
+// ---------- formatting ----------
+const fmtMs = (v) => v == null ? "–" : (v < 10 ? v.toFixed(1) : Math.round(v).toString());
+const fmtMbps = (bps) => {
+  if (bps == null) return "–";
+  const m = bps / 1e6;
+  if (m >= 1000) return (m / 1000).toFixed(2) + " Gbps";
+  if (m >= 100) return Math.round(m) + " Mbps";
+  if (m >= 1) return m.toFixed(1) + " Mbps";
+  return Math.round(bps / 1e3) + " kbps";
+};
+const unitSplit = (s) => { const i = s.lastIndexOf(" "); return i < 0 ? s : `${s.slice(0, i)}<small>${s.slice(i + 1)}</small>`; };
+const fmtBytes = (b) => b >= 1 << 30 ? (b / (1 << 30)).toFixed(2) + " GB" : b >= 1 << 20 ? (b / (1 << 20)).toFixed(1) + " MB" : Math.round(b / 1024) + " KB";
+const fmtDur = (s) => {
+  if (s == null) return "–";
+  s = Math.max(0, Math.round(s));
+  if (s < 60) return s + "s";
+  if (s < 3600) return Math.floor(s / 60) + "m " + (s % 60) + "s";
+  const h = Math.floor(s / 3600); return h + "h " + Math.floor((s % 3600) / 60) + "m";
+};
+const fmtTime = (t) => new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" });
+const scoreLabel = (r) => r >= 80 ? "Excellent" : r >= 70 ? "Good" : r >= 60 ? "Fair" : r >= 50 ? "Poor" : "Bad";
+const STATUS = {
+  good: { label: "Good", ic: "✓", color: "--good" },
+  degraded: { label: "Degraded", ic: "!", color: "--warn" },
+  down: { label: "Down", ic: "✕", color: "--crit" },
+};
+
+// ---------- charts ----------
+const CHARTS = [
+  { id: "strip", kind: "strip", title: "Status", info: "One cell per second. Green: all fine. Yellow (degraded): some loss, a latency spike or a low quality score. Red (down): no target answered. Purple marks: a speed probe ran.", h: 30 },
+  { id: "lat", kind: "line", title: "Latency", info: "Round-trip time to the internet (median of targets) and to your router. Shaded red: down seconds. Triangles at the top: spikes beyond the scale. On longer ranges the band shows min–max per pixel.", unit: "ms", h: 150, clip: true, downBand: true,
+    series: [
+      { key: "rtt", label: "Internet (median of targets)", color: "--s1", get: (s) => s.rtt_ms },
+      { key: "gw", label: "Router", color: "--s2", get: (s) => s.gateway_ms },
+    ] },
+  { id: "jit", kind: "line", title: "Jitter", info: "Second-to-second change in latency. Spikes here are what you hear as robotic voice or see as frozen video.", unit: "ms", h: 90, clip: true,
+    series: [{ key: "jit", label: "Jitter", color: "--s1", get: (s) => s.jitter_ms }] },
+  { id: "loss", kind: "bars", title: "Packet loss", info: "Share of this second's probes that got no answer (with 3 targets, one lost probe = 33%).", unit: "%", h: 60, fixedMax: 100,
+    series: [{ key: "loss", label: "Loss", color: "--crit", get: (s) => s.loss_pct }] },
+  { id: "tput", kind: "line", title: "Your traffic", info: "Bandwidth you are actually using, from the network interface counters, with netpulse's own probe traffic subtracted. Dashed lines: estimated capacity.", unit: "Mbps", h: 130, scale: 1e-6,
+    series: [
+      { key: "rx", label: "Download", color: "--s1", get: (s) => s.rx_bps },
+      { key: "tx", label: "Upload", color: "--s2", get: (s) => s.tx_bps },
+    ],
+    refs: () => {
+      const sp = S.summary && S.summary.speed; if (!sp) return [];
+      const r = [];
+      if (sp.capacity_down_bps) r.push({ v: sp.capacity_down_bps, label: "↓ capacity " + fmtMbps(sp.capacity_down_bps) });
+      if (sp.capacity_up_bps) r.push({ v: sp.capacity_up_bps, label: "↑ capacity " + fmtMbps(sp.capacity_up_bps) });
+      return r;
+    } },
+];
+
+function buildCharts() {
+  const host = $("charts");
+  for (const c of CHARTS) {
+    const wrap = document.createElement("div");
+    wrap.className = "chart";
+    let legend = "";
+    if (c.kind === "strip") {
+      legend = ["good", "degraded", "down"].map((k) =>
+        `<span class="lg"><span class="sw" style="background:var(${STATUS[k].color})"></span>${STATUS[k].label}</span>`).join("") +
+        `<span class="lg"><span class="sw" style="background:var(--probe);height:3px"></span>Speed probe</span>`;
+    } else if (c.series.length > 1) {
+      legend = c.series.map((s) => `<span class="lg"><span class="sw line" style="background:var(${s.color})"></span>${s.label}</span>`).join("");
+      if (c.refs) legend += `<span class="lg"><span class="sw dash"></span>Estimated capacity</span>`;
+    }
+    wrap.innerHTML = `<div class="head"><b data-info="${esc(c.info || "")}">${c.title}</b>${c.unit ? `<span>${c.unit}</span>` : ""}${legend}<span class="spacer"></span><span id="${c.id}-now"></span></div><canvas id="${c.id}" height="${c.h}" style="height:${c.h}px"></canvas>`;
+    host.appendChild(wrap);
+    const cv = wrap.querySelector("canvas");
+    c.cv = cv;
+    cv.addEventListener("mousemove", (e) => onHover(e, c));
+    cv.addEventListener("mouseleave", () => { S.hoverT = null; $("tip").style.display = "none"; scheduleDraw(); });
+  }
+}
+
+const PAD = { l: 44, r: 12, t: 6, b: 18 };
+
+function visible() {
+  const n = S.samples.length;
+  if (!n) return { list: [], t0: 0, t1: 0 };
+  const t1 = S.samples[n - 1].t + 1000;
+  const t0 = t1 - S.range * 1000;
+  let i = n - 1;
+  while (i > 0 && S.samples[i - 1].t >= t0) i--;
+  return { list: S.samples.slice(i), t0, t1 };
+}
+
+// Pick a round tick step near max/target, then as many ticks as needed.
+function niceScale(max, target) {
+  if (!(max > 0)) return { step: 1, ticks: target };
+  const raw = max / target;
+  const p = Math.pow(10, Math.floor(Math.log10(raw)));
+  const m = [1, 2, 2.5, 5, 10].reduce((a, b) => Math.abs(b * p - raw) < Math.abs(a * p - raw) ? b : a);
+  const step = m * p;
+  return { step, ticks: Math.max(1, Math.ceil(max / step - 1e-9)) };
+}
+
+function setupCanvas(cv) {
+  const dpr = window.devicePixelRatio || 1;
+  const w = cv.clientWidth, h = parseInt(cv.style.height);
+  if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) {
+    cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+  }
+  const g = cv.getContext("2d");
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, w, h);
+  return { g, w, h };
+}
+
+// Bucket samples into pixel columns: for each column keep mean/min/max of
+// each series and the worst status.
+function bucketize(list, t0, t1, plotW, getters) {
+  const cols = Math.max(1, Math.floor(plotW));
+  const span = t1 - t0;
+  const perCol = span / 1000 / cols; // seconds per column
+  const nb = perCol <= 1 ? Math.round(span / 1000) : cols;
+  const out = new Array(nb);
+  for (const s of list) {
+    let b = Math.floor((s.t - t0) / span * nb);
+    if (b < 0 || b >= nb) continue;
+    let o = out[b];
+    if (!o) o = out[b] = { n: 0, st: 0, probe: false, vals: getters.map(() => ({ sum: 0, n: 0, min: Infinity, max: -Infinity })) };
+    o.n++;
+    const rank = s.status === "down" ? 2 : s.status === "degraded" ? 1 : 0;
+    if (rank > o.st) o.st = rank;
+    if (s.speed_probe) o.probe = true;
+    getters.forEach((get, k) => {
+      const v = get(s);
+      if (v == null) return;
+      const a = o.vals[k]; a.sum += v; a.n++; if (v < a.min) a.min = v; if (v > a.max) a.max = v;
+    });
+  }
+  return { out, nb };
+}
+
+function drawAxisTime(g, x0, x1, y, t0, t1) {
+  g.fillStyle = css("--muted"); g.font = "11px system-ui, -apple-system, sans-serif"; g.textAlign = "center"; g.textBaseline = "top";
+  const span = (t1 - t0) / 1000;
+  const steps = [10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600, 7200, 10800, 21600];
+  const target = span / Math.max(2, Math.floor((x1 - x0) / 110));
+  const step = (steps.find((s) => s >= target) || 21600) * 1000;
+  for (let t = Math.ceil(t0 / step) * step; t <= t1; t += step) {
+    const x = x0 + (t - t0) / (t1 - t0) * (x1 - x0);
+    const d = new Date(t);
+    const lab = d.toLocaleTimeString([], step < 60000
+      ? { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }
+      : { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+    g.fillText(lab, x, y + 4);
+  }
+}
+
+function drawChart(c, vis) {
+  const { g, w, h } = setupCanvas(c.cv);
+  const x0 = PAD.l, x1 = w - PAD.r;
+  const plotW = x1 - x0;
+  const { list, t0, t1 } = vis;
+  if (!list.length) return;
+  const X = (t) => x0 + (t - t0) / (t1 - t0) * plotW;
+
+  if (c.kind === "strip") {
+    const { out, nb } = bucketize(list, t0, t1, plotW, []);
+    const cw = plotW / nb;
+    const gap = cw >= 4 ? 1 : 0;
+    const cols = [css("--good"), css("--warn"), css("--crit")];
+    for (let b = 0; b < nb; b++) {
+      const o = out[b]; if (!o) continue;
+      g.fillStyle = cols[o.st];
+      g.fillRect(x0 + b * cw, 2, Math.max(cw - gap, 0.6), h - 9);
+      if (o.probe) { g.fillStyle = css("--probe"); g.fillRect(x0 + b * cw, h - 5, Math.max(cw - gap, 1), 3); }
+    }
+    drawCrosshair(g, X, 0, h);
+    return;
+  }
+
+  const yb = h - PAD.b, yt = PAD.t;
+  const scale = c.scale || 1;
+  const getters = c.series.map((s) => s.get);
+  const { out, nb } = bucketize(list, t0, t1, plotW, getters);
+
+  // y scale
+  let max = 0; const all = [];
+  for (const o of out) if (o) o.vals.forEach((a) => { if (a.n) { max = Math.max(max, a.max); all.push(a.max); } });
+  const refs = c.refs ? c.refs() : [];
+  if (c.clip && all.length > 10) {
+    all.sort((a, b) => a - b);
+    const p99 = all[Math.floor(all.length * 0.99)];
+    max = Math.min(max, Math.max(p99 * 1.5, 10));
+  }
+  for (const r of refs) max = Math.max(max, r.v * 1.05);
+  const ns = c.fixedMax ? { step: c.fixedMax / 2, ticks: 2 } : niceScale(max * scale * 1.05, h > 100 ? 4 : 2);
+  const yMax = ns.step * ns.ticks / scale;
+  const Y = (v) => yb - Math.min(v, yMax) / yMax * (yb - yt);
+
+  // grid + labels
+  g.strokeStyle = css("--grid"); g.lineWidth = 1; g.fillStyle = css("--muted");
+  g.font = "11px system-ui, -apple-system, sans-serif"; g.textAlign = "right"; g.textBaseline = "middle";
+  for (let i = 0; i <= ns.ticks; i++) {
+    const v = yMax * i / ns.ticks;
+    const y = Math.round(Y(v)) + 0.5;
+    if (i > 0) { g.beginPath(); g.moveTo(x0, y); g.lineTo(x1, y); g.stroke(); }
+    const lv = v * scale;
+    g.fillText(Number.isInteger(+lv.toFixed(6)) ? Math.round(lv) : lv.toFixed(ns.step * 1 < 1 ? 2 : 1).replace(/0$/, ""), x0 - 6, y);
+  }
+  g.strokeStyle = css("--axis"); g.beginPath(); g.moveTo(x0, yb + 0.5); g.lineTo(x1, yb + 0.5); g.stroke();
+  drawAxisTime(g, x0, x1, yb, t0, t1);
+
+  const cw = plotW / nb;
+  // outage band
+  if (c.downBand) {
+    g.fillStyle = css("--crit"); g.globalAlpha = 0.14;
+    for (let b = 0; b < nb; b++) if (out[b] && out[b].st === 2) g.fillRect(x0 + b * cw, yt, Math.max(cw, 1), yb - yt);
+    g.globalAlpha = 1;
+  }
+
+  if (c.kind === "bars") {
+    g.fillStyle = css(c.series[0].color);
+    for (let b = 0; b < nb; b++) {
+      const o = out[b]; if (!o || !o.vals[0].n) continue;
+      const v = o.vals[0].sum / o.vals[0].n; if (v <= 0) continue;
+      const y = Y(v);
+      g.fillRect(x0 + b * cw, y, Math.max(cw - (cw >= 4 ? 1 : 0), 1), yb - y);
+    }
+  } else {
+    c.series.forEach((s, k) => {
+      const col = css(s.color);
+      // min-max band when more than 1 second per column
+      if (nb < list.length * 0.9) {
+        g.fillStyle = col; g.globalAlpha = 0.16;
+        for (let b = 0; b < nb; b++) {
+          const a = out[b] && out[b].vals[k]; if (!a || !a.n) continue;
+          const ya = Y(a.max), yb2 = Y(a.min);
+          g.fillRect(x0 + b * cw, ya, Math.max(cw, 1), Math.max(yb2 - ya, 1));
+        }
+        g.globalAlpha = 1;
+      }
+      g.strokeStyle = col; g.lineWidth = 2; g.lineJoin = "round"; g.lineCap = "round";
+      g.beginPath(); let pen = false;
+      for (let b = 0; b < nb; b++) {
+        const a = out[b] && out[b].vals[k];
+        if (!a || !a.n) { pen = false; continue; }
+        const x = x0 + (b + 0.5) * cw, y = Y(a.sum / a.n);
+        if (pen) g.lineTo(x, y); else { g.moveTo(x, y); pen = true; }
+      }
+      g.stroke();
+      // clipped spikes
+      if (c.clip) {
+        g.fillStyle = col;
+        for (let b = 0; b < nb; b++) {
+          const a = out[b] && out[b].vals[k];
+          if (a && a.n && a.max > yMax) {
+            const x = x0 + (b + 0.5) * cw;
+            g.beginPath(); g.moveTo(x, yt); g.lineTo(x - 4, yt + 6); g.lineTo(x + 4, yt + 6); g.closePath(); g.fill();
+          }
+        }
+      }
+    });
+  }
+
+  // reference lines (capacity)
+  for (const r of refs) {
+    const y = Math.round(Y(r.v)) + 0.5;
+    g.strokeStyle = css("--muted"); g.setLineDash([5, 4]); g.lineWidth = 1.5;
+    g.beginPath(); g.moveTo(x0, y); g.lineTo(x1, y); g.stroke(); g.setLineDash([]);
+    g.fillStyle = css("--ink-2"); g.textAlign = "right"; g.textBaseline = "bottom"; g.font = "11px system-ui, -apple-system, sans-serif";
+    g.fillText(r.label, x1 - 4, y - 3);
+  }
+  drawCrosshair(g, X, yt, yb);
+}
+
+function drawCrosshair(g, X, ya, yb) {
+  if (S.hoverT == null) return;
+  const x = Math.round(X(S.hoverT + 500)) + 0.5;
+  g.strokeStyle = css("--ink-2"); g.lineWidth = 1; g.globalAlpha = 0.6;
+  g.beginPath(); g.moveTo(x, ya); g.lineTo(x, yb); g.stroke(); g.globalAlpha = 1;
+}
+
+function onHover(e, c) {
+  const vis = visible(); if (!vis.list.length) return;
+  const r = c.cv.getBoundingClientRect();
+  const x = e.clientX - r.left;
+  const plotW = r.width - PAD.l - PAD.r;
+  const f = (x - PAD.l) / plotW;
+  if (f < 0 || f > 1) { S.hoverT = null; $("tip").style.display = "none"; scheduleDraw(); return; }
+  const t = vis.t0 + f * (vis.t1 - vis.t0);
+  // nearest sample
+  let best = null, bd = Infinity;
+  for (const s of vis.list) { const d = Math.abs(s.t + 500 - t); if (d < bd) { bd = d; best = s; } }
+  if (!best) return;
+  S.hoverT = best.t;
+  const st = STATUS[best.status] || STATUS.good;
+  const rows = [
+    ["Status", st.label + (best.speed_probe ? " · speed probe" : "")],
+    ["Latency", fmtMs(best.rtt_ms) + " ms"],
+    ["Router", fmtMs(best.gateway_ms) + " ms"],
+    ["Jitter", fmtMs(best.jitter_ms) + " ms"],
+    ["Loss", best.loss_pct.toFixed(0) + " %"],
+    ["DNS", fmtMs(best.dns_ms) + " ms"],
+    ["Download", fmtMbps(best.rx_bps)],
+    ["Upload", fmtMbps(best.tx_bps)],
+    ["Score", Math.round(best.score) + " (" + scoreLabel(best.score) + ")"],
+  ];
+  const targets = Object.entries(best.target_rtt || {}).map(([k, v]) => [k, v == null ? "lost" : fmtMs(v) + " ms"]);
+  const tip = $("tip");
+  tip.innerHTML = `<div class="t">${fmtTime(best.t)}</div>` + rows.concat(targets).map(([a, b]) => `<div class="row"><span>${a}</span><span>${b}</span></div>`).join("");
+  tip.style.display = "block";
+  const tw = tip.offsetWidth, th = tip.offsetHeight;
+  let lx = e.clientX + 14, ly = e.clientY + 14;
+  if (lx + tw > window.innerWidth - 8) lx = e.clientX - tw - 14;
+  if (ly + th > window.innerHeight - 8) ly = window.innerHeight - th - 8;
+  tip.style.left = Math.max(8, lx) + "px"; tip.style.top = Math.max(8, ly) + "px";
+  scheduleDraw();
+}
+
+let drawPending = false;
+function scheduleDraw() { if (!drawPending) { drawPending = true; requestAnimationFrame(() => { drawPending = false; drawAll(); }); } }
+function drawAll() { const vis = visible(); for (const c of CHARTS) drawChart(c, vis); }
+
+// ---------- panels ----------
+function setTile(id, value, detail) { $(id).innerHTML = value; if (detail !== undefined) $(id + "D").textContent = detail; }
+
+function renderSummary() {
+  const sm = S.summary; if (!sm) return;
+  const now = sm.now;
+  const w = Object.fromEntries((sm.windows || []).map((x) => [x.label, x]));
+  const w1 = w["1m"], w5 = w["5m"] || w1, wh = w["1h"] || w5 || w1;
+
+  // status pill
+  if (now) {
+    const st = STATUS[now.status] || STATUS.good;
+    $("pillIc").textContent = st.ic; $("pillIc").style.background = `var(${st.color})`;
+    $("pillTx").textContent = st.label;
+    $("stable").textContent = "stable for " + fmtDur(sm.stable_for_s);
+  }
+  const route = sm.info.route || {};
+  $("info").textContent = `${sm.info.mode} → ${sm.info.targets.join(", ")} · ${route.interface || "?"} via ${route.gateway || "?"}`;
+
+  if (now && w1) {
+    setTile("tScore", Math.round(w1.score_avg) + `<small>/100</small>`, `${scoreLabel(w1.score_avg)} · MOS ${w1.mos_avg.toFixed(1)} · 1 min avg`);
+    setTile("tRtt", fmtMs(now.rtt_ms) + "<small>ms</small>", `p50 ${fmtMs(w1.rtt_p50_ms)} · p95 ${fmtMs(w1.rtt_p95_ms)} · min ${fmtMs(w1.rtt_min_ms)} (1 min)`);
+    setTile("tJit", fmtMs(now.jitter_ms) + "<small>ms</small>", `avg ${fmtMs(w1.jitter_ms)} ms over 1 min`);
+  }
+  if (w5) setTile("tLoss", w5.loss_pct.toFixed(w5.loss_pct < 1 && w5.loss_pct > 0 ? 2 : 1) + "<small>%</small>", `${w5.degraded_seconds} degraded s · ${w5.spikes} spikes`);
+  if (wh) setTile("tAvail", (wh.availability_pct >= 99.995 ? "100" : wh.availability_pct.toFixed(2)) + "<small>%</small>",
+    `${wh.down_seconds} s down · ${wh.outages} outage${wh.outages === 1 ? "" : "s"} · longest ${fmtDur(wh.longest_outage_s)}` + (wh.samples < wh.seconds ? ` · ${fmtDur(wh.samples)} of data` : ""));
+  if (now) {
+    setTile("tGw", fmtMs(now.gateway_ms) + "<small>ms</small>", w1 ? `p50 ${fmtMs(w1.gateway_p50_ms)} · p95 ${fmtMs(w1.gateway_p95_ms)}` : "");
+    setTile("tDns", fmtMs(now.dns_ms) + "<small>ms</small>", w1 ? `p50 ${fmtMs(w1.dns_p50_ms)} ms · ${sm.info.dns_name}` : "");
+  }
+
+  const sp = sm.speed;
+  setTile("tDown", unitSplit(fmtMbps(sp.capacity_down_bps)), sp.down_bps ? `probe ${fmtMbps(sp.down_bps)} · your peak ${fmtMbps(sp.passive_peak_rx_bps)}` : `your peak ${fmtMbps(sp.passive_peak_rx_bps)} (no probe yet)`);
+  setTile("tUp", unitSplit(fmtMbps(sp.capacity_up_bps)), sp.up_bps ? `probe ${fmtMbps(sp.up_bps)} · your peak ${fmtMbps(sp.passive_peak_tx_bps)}` : `your peak ${fmtMbps(sp.passive_peak_tx_bps)} (no probe yet)`);
+  if (sp.bufferbloat_ms != null) {
+    const b = sp.bufferbloat_ms;
+    const grade = b < 5 ? "A+" : b < 30 ? "A" : b < 60 ? "B" : b < 200 ? "C" : b < 400 ? "D" : "F";
+    setTile("tBloat", "+" + fmtMs(b) + "<small>ms</small>", `grade ${grade} · extra latency while downloading`);
+  } else setTile("tBloat", "–", "measured during download probes");
+
+  // speed panel
+  $("spStatus").textContent = sp.status;
+  $("spNext").textContent = !sp.enabled ? "disabled" : sp.probing ? "now" : fmtDur((sp.next_probe_at - Date.now()) / 1000);
+  $("spInt").textContent = fmtDur(sp.interval_s);
+  $("spCount").textContent = sp.probes_today;
+  $("spBudget").textContent = `${fmtBytes(sp.used_today_bytes)} / ${fmtBytes(sp.budget_bytes)}`;
+  $("spBudgetBar").style.width = Math.min(100, 100 * sp.used_today_bytes / sp.budget_bytes) + "%";
+  $("fullBtn").disabled = sp.full_running;
+  $("fullBtn").textContent = sp.full_running ? "Testing…" : "Run full test";
+  const rows = (sp.recent || []).slice(-10).reverse().map((r) => `<tr>
+    <td>${fmtTime(r.t)}</td><td>${r.dir === "down" ? "↓" : "↑"}${r.full ? ' <span class="tag">full</span>' : ""}</td>
+    <td>${r.error ? "–" : fmtMbps(r.bps)}</td><td>${fmtBytes(r.bytes)}</td><td>${Math.round(r.duration_ms)} ms</td>
+    <td>${r.loaded_rtt_ms != null ? fmtMs(r.loaded_rtt_ms) + " ms" + (r.baseline_ms != null ? ` (+${fmtMs(Math.max(0, r.loaded_rtt_ms - r.baseline_ms))})` : "") : "–"}</td>
+    <td style="text-align:left;white-space:normal;min-width:120px">${r.error ? "error: " + esc(r.error) : r.aborted ? "stopped: " + esc(r.aborted) : ""}</td></tr>`);
+  $("probes").tBodies[0].innerHTML = rows.join("") || `<tr><td colspan="7" style="text-align:left;color:var(--muted)">No probes yet</td></tr>`;
+
+  // windows table
+  $("win").tBodies[0].innerHTML = (sm.windows || []).map((x) => `<tr>
+    <td>${x.label}${x.samples < x.seconds ? ` <span class="tag">${fmtDur(x.samples)}</span>` : ""}</td>
+    <td>${x.availability_pct.toFixed(2)}%</td><td>${x.good_pct.toFixed(1)}%</td><td>${x.outages}</td><td>${fmtDur(x.longest_outage_s)}</td>
+    <td>${fmtMs(x.rtt_p50_ms)}</td><td>${fmtMs(x.rtt_p95_ms)}</td><td>${fmtMs(x.jitter_ms)}</td>
+    <td>${x.loss_pct.toFixed(2)}%</td><td>${x.spikes}</td><td>${Math.round(x.score_avg)}</td></tr>`).join("");
+
+  // chart header "now" values
+  if (now) {
+    $("lat-now").textContent = `now ${fmtMs(now.rtt_ms)} ms · router ${fmtMs(now.gateway_ms)} ms`;
+    $("jit-now").textContent = `now ${fmtMs(now.jitter_ms)} ms`;
+    $("loss-now").textContent = `now ${now.loss_pct.toFixed(0)} %`;
+    $("tput-now").textContent = `now ↓ ${fmtMbps(now.rx_bps)} · ↑ ${fmtMbps(now.tx_bps)}`;
+    const wr = w[labelFor(S.range)];
+    $("strip-now").textContent = wr ? `${wr.availability_pct.toFixed(2)}% available · ${wr.good_pct.toFixed(1)}% good in view` : "";
+  }
+}
+const labelFor = (s) => ({ 60: "1m", 300: "5m", 900: "15m", 3600: "1h", 21600: "6h", 86400: "24h" }[s]);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+// ---------- info tooltips ----------
+// Every element with data-info gets a small (i) button; hovering the label
+// or the icon, focusing the icon, or tapping it shows the description.
+function initInfo() {
+  const tip = $("infotip");
+  let pinned = null, current = null;
+  const show = (el) => {
+    current = el;
+    tip.textContent = el.dataset.info;
+    tip.style.display = "block";
+    const r = el.getBoundingClientRect();
+    const tw = tip.offsetWidth, th = tip.offsetHeight;
+    let x = Math.min(Math.max(8, r.left), window.innerWidth - tw - 8);
+    let y = r.bottom + 6;
+    if (y + th > window.innerHeight - 8) y = r.top - th - 6;
+    tip.style.left = x + "px"; tip.style.top = Math.max(8, y) + "px";
+  };
+  const hide = () => { current = null; tip.style.display = "none"; };
+  document.querySelectorAll("[data-info]").forEach((el) => {
+    if (!el.dataset.info || el.querySelector(".info")) return;
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "info"; b.textContent = "i";
+    b.setAttribute("aria-label", "About " + el.textContent.trim() + ": " + el.dataset.info);
+    el.appendChild(b);
+    el.addEventListener("mouseenter", () => show(el));
+    el.addEventListener("mouseleave", () => { if (pinned !== el) hide(); });
+    b.addEventListener("focus", () => show(el));
+    b.addEventListener("blur", () => { pinned = null; hide(); });
+    b.addEventListener("click", (e) => { e.stopPropagation(); pinned = pinned === el ? null : el; pinned ? show(el) : hide(); });
+  });
+  document.addEventListener("click", () => { pinned = null; hide(); });
+  // keep the tooltip attached to its label while the page scrolls
+  window.addEventListener("scroll", () => { if (current) show(current); }, { passive: true });
+}
+
+// ---------- config ----------
+function applyConfig(c) {
+  const ranges = { "1m": 60, "5m": 300, "15m": 900, "1h": 3600, "6h": 21600, "24h": 86400 };
+  const r = ranges[c.config.web_ui.default_time_range];
+  if (r) {
+    S.range = r;
+    document.querySelectorAll("#range button").forEach((x) => x.setAttribute("aria-pressed", +x.dataset.s === r));
+  }
+  const se = c.config.speed_estimator;
+  const ms = (ns) => Math.round(ns / 1e6);
+  $("spNote").textContent = `Automatic probes only start when your own traffic has stayed under ${se.idle_traffic_threshold_kbps} kbps for ` +
+    `${ms(se.idle_required_for) / 1000}s and latency is near baseline, are sized to last ~${ms(se.target_probe_duration)} ms, and stop ` +
+    `instantly if latency rises ${se.abort_when_latency_rises_ms} ms above baseline. Between probes your own busiest second is used as a ` +
+    `lower bound. “Run full test” is the heavy, explicit version (${se.full_test_parallel_streams} streams, ` +
+    `${ms(se.full_test_duration_per_direction) / 1000}s per direction). Config: ${c.source}.`;
+}
+
+// ---------- data ----------
+function addSample(s) {
+  const a = S.samples;
+  if (a.length && a[a.length - 1].t >= s.t) return;
+  a.push(s);
+  if (a.length > S.maxKeep) a.splice(0, a.length - S.maxKeep);
+}
+
+async function boot() {
+  buildCharts();
+  initInfo();
+  document.querySelectorAll("#range button").forEach((b) => b.addEventListener("click", () => {
+    document.querySelectorAll("#range button").forEach((x) => x.setAttribute("aria-pressed", x === b));
+    S.range = +b.dataset.s; renderSummary(); scheduleDraw();
+  }));
+  $("fullBtn").addEventListener("click", async () => {
+    $("fullBtn").disabled = true;
+    await fetch("/api/speedtest", { method: "POST" }).catch(() => {});
+  });
+  window.addEventListener("resize", scheduleDraw);
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", scheduleDraw);
+
+  try {
+    const [hist, sum, cfg] = await Promise.all([
+      fetch("/api/samples?seconds=86400").then((r) => r.json()),
+      fetch("/api/summary").then((r) => r.json()),
+      fetch("/api/config").then((r) => r.json()),
+    ]);
+    applyConfig(cfg);
+    (hist || []).forEach(addSample);
+    S.summary = sum;
+    renderSummary(); scheduleDraw();
+  } catch (e) { console.error(e); }
+
+  const connect = () => {
+    const es = new EventSource("/api/stream");
+    es.addEventListener("open", () => { $("conn").textContent = ""; });
+    es.addEventListener("tick", (ev) => {
+      const d = JSON.parse(ev.data);
+      addSample(d.sample); S.summary = d.summary;
+      renderSummary(); scheduleDraw();
+    });
+    es.onerror = () => { $("conn").textContent = "reconnecting…"; };
+  };
+  connect();
+  // keep the "next probe in" countdown moving even between ticks
+  setInterval(() => { if (S.summary) { const sp = S.summary.speed; if (sp.enabled && !sp.probing) $("spNext").textContent = fmtDur((sp.next_probe_at - Date.now()) / 1000); } }, 1000);
+}
+boot();
+</script>
+</body>
+</html>

@@ -1,0 +1,117 @@
+# netpulse configuration
+#
+# Every key is optional: anything you leave out keeps the default shown here.
+# Unknown keys are rejected, so typos are caught at startup.
+# Durations use Go syntax: 900ms, 5s, 2m, 1h30m.
+#
+# Lookup order: -config <path>, else ~/.config/netpulse/config.yaml, else built-in defaults.
+# Print this file with: netpulse -print-default-config
+
+web_server:
+  # Address the web UI and JSON API listen on. Keep 127.0.0.1 so only this Mac can reach it;
+  # use 0.0.0.0:7171 to view it from other devices on your network.
+  listen_address: 127.0.0.1:7171
+
+latency_probes:
+  # IPv4 hosts probed every second. "Latency" is the median of their round-trip times;
+  # a second counts as "down" when none of them answers. Use several independent providers
+  # so one provider's hiccup does not look like your internet going down.
+  internet_targets: [1.1.1.1, 8.8.8.8, 9.9.9.9]
+  # A probe that has not answered within this time counts as lost. Must be below 1s,
+  # because a new measurement round starts every second.
+  probe_timeout: 900ms
+  # How round trips are measured:
+  #   auto - ICMP echo (ping) when the OS allows it without root (macOS does), otherwise tcp
+  #   icmp - always ICMP echo; fails at startup if not permitted
+  #   tcp  - time a TCP handshake to tcp_probe_port (works through most firewalls)
+  probe_method: auto
+  # Port used by the tcp probe method (and by auto when it falls back to tcp).
+  tcp_probe_port: 443
+  # Also ping your router (default gateway) every second. If the router is slow too,
+  # the problem is your Wi-Fi/LAN; if only internet targets are slow, it's the ISP or beyond.
+  router_probe_enabled: true
+  # How often the default route (router address and network interface) is re-detected,
+  # so switching Wi-Fi networks or plugging in Ethernet is picked up.
+  route_refresh_interval: 15s
+
+dns_probe:
+  # Time one DNS lookup per second through your configured resolver (bypassing the macOS cache).
+  enabled: true
+  # Hostname that is looked up. Pick a popular one so the resolver has it cached;
+  # that way you measure the network path to the resolver, not the internet's DNS tree.
+  lookup_hostname: www.apple.com
+
+quality_rules:
+  # Each second gets a quality score (E-model R-factor, 0-100) computed from latency, jitter and loss.
+  # Seconds scoring below this are marked "degraded". 80+ excellent, 70+ good, 60+ fair, <60 poor.
+  degraded_below_score: 70
+  # A second is a "latency spike" (and marked degraded) when its latency is at least this many
+  # times the baseline AND at least latency_spike_min_increase_ms above it.
+  latency_spike_multiplier: 3
+  latency_spike_min_increase_ms: 50
+  # The latency baseline is the 10th percentile of latency over this window: your "unloaded" latency.
+  # Used for spike detection and by the speed estimator's politeness checks.
+  baseline_window: 5m
+
+history:
+  # How much per-second history is kept in memory (and offered by the UI's longest range).
+  # 24h ≈ 86,400 samples ≈ 20-30 MB of RAM.
+  keep_in_memory: 24h
+  # If set, every sample is appended to this file as one JSON line, for later analysis
+  # (e.g. ~/netpulse-samples.jsonl). Empty disables recording. A leading ~ is expanded.
+  record_to_file: ""
+
+speed_estimator:
+  # Automatic, low-impact capacity probes. Set false to rely only on passively observed
+  # traffic peaks and the manual "Run full test" button.
+  automatic_probes_enabled: true
+  # Endpoints used for download/upload probes. download_url must contain one %d (byte count).
+  download_url: https://speed.cloudflare.com/__down?bytes=%d
+  upload_url: https://speed.cloudflare.com/__up
+
+  # --- when a probe may start (all must hold) ---
+  # Your own traffic (excluding netpulse's) must stay below this, in both directions...
+  idle_traffic_threshold_kbps: 400
+  # ...continuously for this long. Ensures nobody is using the link, so nobody can feel the probe.
+  idle_required_for: 5s
+  # Latency must be within this many ms of the baseline (no congestion already going on).
+  max_latency_above_baseline_to_start_ms: 20
+  # Delay before the very first probe after startup (lets the latency baseline settle).
+  first_probe_delay: 20s
+  # Automatic probes stop for the day once this much data was transferred (resets at local midnight).
+  daily_data_budget_mb: 1024
+
+  # --- how big a probe is ---
+  # Each probe is sized from the previous estimate to last about this long. Shorter = less noticeable
+  # but less accurate on fast links. If a probe finishes in under half of this, it is repeated
+  # (at most twice) with a bigger size.
+  target_probe_duration: 300ms
+  min_probe_size_mb: 0.5
+  max_probe_size_mb: 40
+
+  # --- safety guard while a probe runs ---
+  # Latency is sampled every 100ms during a probe. If it rises this many ms above baseline twice
+  # in a row (queues are filling and you would start to feel it), the probe is cancelled at once
+  # and the probe interval is doubled.
+  abort_when_latency_rises_ms: 60
+
+  # --- how often ---
+  # Probe interval starts at the minimum and grows by interval_growth_factor every time the result
+  # comes back within stable_result_tolerance_pct of the previous estimate, up to the maximum.
+  # A changed result or a network change resets it to the minimum.
+  min_probe_interval: 2m
+  max_probe_interval: 30m
+  interval_growth_factor: 1.5
+  stable_result_tolerance_pct: 15
+  # Upload is probed only every Nth probe session (uplinks are smaller and easier to disturb).
+  upload_probe_every_nth_session: 2
+  # Your busiest second of real traffic within this window counts as a free lower bound on capacity.
+  passive_peak_window: 10m
+
+  # --- manual "Run full test" button (heavy, explicit, ignores the politeness rules above) ---
+  full_test_parallel_streams: 4
+  full_test_duration_per_direction: 4s
+
+web_ui:
+  # Time range selected when the page opens: one of 1m, 5m, 15m, 1h, 6h, 24h.
+  default_time_range: 5m
