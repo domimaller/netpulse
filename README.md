@@ -61,6 +61,7 @@ Lookup order: `-config`, then `~/.config/netpulse/config.yaml`, then built-in de
 | `history` | in-memory retention, optional JSON-lines recording to disk |
 | `speed_estimator` | every politeness knob above, endpoints, budget, full test |
 | `web_ui` | default time range |
+| `menu_bar` | icon colour thresholds, score smoothing, latency text, panel chart span |
 
 The effective config is served at `GET /api/config`.
 
@@ -83,11 +84,30 @@ make agent-uninstall
 | `POST /api/speedtest` | start a full test (202) |
 | `GET /api/config` | effective configuration and its source |
 
-## Menu bar
+## Menu bar app (macOS)
 
-**Today:** `contrib/swiftbar/netpulse.1s.sh` is a [SwiftBar](https://swiftbar.app) plugin (copy it to your SwiftBar plugin folder). It shows a colored status dot + current latency, with a dropdown of score, loss, availability, capacity and a link to the dashboard.
+```
+make app-install     # builds NetPulse.app, installs it to ~/Applications and starts it
+```
 
-**Next:** a native SwiftUI `MenuBarExtra` app that reads `/api/summary` (or the SSE stream) and shows a live sparkline, with notifications for outages. Because the Go server already does all the measuring, the app stays a thin client; later the Go binary can be bundled inside the `.app` and launched as a helper.
+A coloured dot appears in the menu bar, optionally followed by the current latency:
+
+| Colour | Quality score (averaged over the last 10 s) |
+|---|---|
+| deep green | ≥ 85 excellent |
+| green | ≥ 75 good |
+| yellow | ≥ 65 fair |
+| orange | ≥ 50 poor |
+| red (✕ when down) | below 50, or no target answered |
+| grey ring | netpulse not reachable |
+
+Click it for a panel with latency, jitter, loss, uptime, download/upload capacity, router, DNS, bufferbloat, a latency chart with a per-second status strip, a "Run speed test" button, **Open dashboard** (the full web UI), **Show latency in menu bar**, **Launch at login** and Quit. Hover any tile for a description.
+
+The thresholds, smoothing, the latency text and the chart span are in the `menu_bar` section of the config. The app uses a netpulse server that is already running (e.g. the LaunchAgent or `make run`); otherwise it starts the copy bundled inside the app and stops it again on quit (logs: `~/Library/Logs/netpulse.log`). If you use the app, you don't need the LaunchAgent: `make agent-uninstall` and tick "Launch at login" instead.
+
+Requirements: macOS 13+, and `swift` from Xcode or the Command Line Tools (`xcode-select --install`). If you changed `web_server.listen_address`, tell the app: `defaults write io.github.domimaller.netpulse.bar serverURL http://127.0.0.1:7171`.
+
+There's also `contrib/swiftbar/netpulse.1s.sh`, a text-only alternative for [SwiftBar](https://swiftbar.app).
 
 ## Layout
 
@@ -99,6 +119,7 @@ internal/sysnet/       default route + interface byte counters (darwin, linux)
 internal/monitor/      per-second loop, ring buffer, classification, window stats
 internal/speed/        polite capacity estimator + full test
 internal/server/       HTTP API, SSE, embedded web UI (web/index.html, no external deps)
-contrib/swiftbar/      interim menu bar plugin
+macos/NetPulseBar/     SwiftUI menu bar app (Swift package); macos/Info.plist for the bundle
+contrib/swiftbar/      text-only SwiftBar alternative
 packaging/macos/       LaunchAgent template
 ```

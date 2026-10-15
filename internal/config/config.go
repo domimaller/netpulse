@@ -29,6 +29,7 @@ type Config struct {
 	History        History        `yaml:"history" json:"history"`
 	SpeedEstimator SpeedEstimator `yaml:"speed_estimator" json:"speed_estimator"`
 	WebUI          WebUI          `yaml:"web_ui" json:"web_ui"`
+	MenuBar        MenuBar        `yaml:"menu_bar" json:"menu_bar"`
 }
 
 type WebServer struct {
@@ -91,6 +92,16 @@ type SpeedEstimator struct {
 
 type WebUI struct {
 	DefaultTimeRange string `yaml:"default_time_range" json:"default_time_range"`
+}
+
+type MenuBar struct {
+	ExcellentScoreFrom       float64       `yaml:"excellent_score_from" json:"excellent_score_from"`
+	GoodScoreFrom            float64       `yaml:"good_score_from" json:"good_score_from"`
+	FairScoreFrom            float64       `yaml:"fair_score_from" json:"fair_score_from"`
+	PoorScoreFrom            float64       `yaml:"poor_score_from" json:"poor_score_from"`
+	IconScoreSmoothingWindow time.Duration `yaml:"icon_score_smoothing_window" json:"icon_score_smoothing_window"`
+	ShowLatencyNextToIcon    bool          `yaml:"show_latency_next_to_icon" json:"show_latency_next_to_icon"`
+	PanelChartWindow         time.Duration `yaml:"panel_chart_window" json:"panel_chart_window"`
 }
 
 // Default returns the built-in defaults (parsed from default.yaml).
@@ -232,6 +243,16 @@ func (c Config) Validate() error {
 	case "1m", "5m", "15m", "1h", "6h", "24h":
 	default:
 		bad("web_ui.default_time_range", "must be one of 1m, 5m, 15m, 1h, 6h, 24h")
+	}
+	mb := c.MenuBar
+	if !(mb.ExcellentScoreFrom > mb.GoodScoreFrom && mb.GoodScoreFrom > mb.FairScoreFrom && mb.FairScoreFrom > mb.PoorScoreFrom && mb.PoorScoreFrom >= 0) {
+		bad("menu_bar.*_score_from", "need excellent > good > fair > poor >= 0")
+	}
+	if mb.IconScoreSmoothingWindow < time.Second || mb.IconScoreSmoothingWindow > 10*time.Minute {
+		bad("menu_bar.icon_score_smoothing_window", "must be 1s-10m")
+	}
+	if mb.PanelChartWindow < 30*time.Second || mb.PanelChartWindow > time.Hour {
+		bad("menu_bar.panel_chart_window", "must be 30s-1h")
 	}
 	if len(errs) > 0 {
 		return errors.New("invalid config:\n  " + strings.Join(errs, "\n  "))

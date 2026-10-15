@@ -115,3 +115,25 @@ speed_estimator:
 web_ui:
   # Time range selected when the page opens: one of 1m, 5m, 15m, 1h, 6h, 24h.
   default_time_range: 5m
+
+menu_bar:
+  # Settings for the macOS menu bar app (NetPulse.app). It reads them from this server via /api/config.
+  # The icon colour follows the quality score, averaged over icon_score_smoothing_window so it
+  # doesn't flicker every second:
+  #   >= excellent_score_from  deep green
+  #   >= good_score_from       green
+  #   >= fair_score_from       yellow
+  #   >= poor_score_from       orange
+  #   below / down             red        (grey ring = netpulse not reachable)
+  # Note: the score tops out around 93, so 85+ is already a very good connection.
+  excellent_score_from: 85
+  good_score_from: 75
+  fair_score_from: 65
+  poor_score_from: 50
+  icon_score_smoothing_window: 10s
+  # Show the current latency as text next to the icon (e.g. "● 23 ms"). This is only the
+  # default: the "Show latency in menu bar" checkbox in the panel overrides it and is remembered.
+  # When off, a down connection is shown as just the red dot with an x.
+  show_latency_next_to_icon: true
+  # Time span of the latency chart in the drop-down panel.
+  panel_chart_window: 2m

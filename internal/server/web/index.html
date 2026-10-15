@@ -670,6 +670,8 @@ async function boot() {
     es.addEventListener("open", () => { $("conn").textContent = ""; });
     es.addEventListener("tick", (ev) => {
       const d = JSON.parse(ev.data);
+      // The server restarted (possibly a new build with a new UI): reload the page.
+      if (S.summary && S.summary.info.started !== d.summary.info.started) { location.reload(); return; }
       addSample(d.sample); S.summary = d.summary;
       renderSummary(); scheduleDraw();
     });

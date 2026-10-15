@@ -1,2 +1,4 @@
 /bin/
 *.jsonl
+/build/
+/macos/NetPulseBar/.build/

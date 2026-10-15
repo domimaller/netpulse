@@ -100,7 +100,13 @@ func (s *Server) computeSummary() Summary {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	sub, _ := fs.Sub(webFS, "web")
-	mux.Handle("GET /", http.FileServer(http.FS(sub)))
+	// no-cache: the UI is embedded in the binary, so a rebuilt binary must
+	// never be shadowed by a browser-cached copy of the old page.
+	files := http.FileServer(http.FS(sub))
+	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-cache")
+		files.ServeHTTP(w, r)
+	})
 
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("ok")) })
 
